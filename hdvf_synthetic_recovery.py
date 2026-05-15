@@ -1554,47 +1554,51 @@ def main() -> None:
     proxy_summary = summarize_proxy_stress(proxy_rows)
     nonlinear_summary = summarize_nonlinear_model_selection(nonlinear_rows)
 
-    write_parameters_used(ROOT / "run_parameters_used.csv")
-    write_csv(ROOT / "synthetic_ground_truth_recovery.csv", synthetic_rows)
-    write_csv(ROOT / "synthetic_ground_truth_summary.csv", synthetic_summary)
-    write_csv(ROOT / "leverage_regime_recovery.csv", leverage_rows)
-    write_csv(ROOT / "leverage_regime_summary.csv", leverage_summary)
-    write_csv(ROOT / "kernel_bandwidth_robustness.csv", kernel_rows)
-    write_csv(ROOT / "kernel_bandwidth_summary.csv", kernel_summary)
-    write_csv(ROOT / "proxy_stress_recovery.csv", proxy_rows)
-    write_csv(ROOT / "proxy_stress_summary.csv", proxy_summary)
-    write_csv(ROOT / "nonlinear_model_selection.csv", nonlinear_rows)
-    write_csv(ROOT / "nonlinear_model_selection_summary.csv", nonlinear_summary)
+    (ROOT / "csvs").mkdir(exist_ok=True)
+    (ROOT / "pdfs").mkdir(exist_ok=True)
 
-    plot_synthetic_recovery(ROOT / "synthetic_heston_recovery.pdf", synthetic_rows)
-    plot_rho_true_vs_hat(leverage_rows, ROOT / "rho_true_vs_hat.pdf")
-    plot_leverage_error_by_rho(leverage_rows, ROOT / "leverage_error_by_rho.pdf")
-    plot_kernel_robustness(kernel_summary, ROOT / "kernel_bandwidth_robustness.pdf")
-    plot_proxy_stress(proxy_rows, proxy_summary, ROOT / "proxy_stress_tests.pdf")
-    plot_nonlinear_model_selection(nonlinear_summary, ROOT / "nonlinear_model_selection_boundaries.pdf")
+    write_parameters_used(ROOT / "csvs" / "run_parameters_used.csv")
+    write_csv(ROOT / "csvs" / "synthetic_ground_truth_recovery.csv", synthetic_rows)
+    write_csv(ROOT / "csvs" / "synthetic_ground_truth_summary.csv", synthetic_summary)
+    write_csv(ROOT / "csvs" / "leverage_regime_recovery.csv", leverage_rows)
+    write_csv(ROOT / "csvs" / "leverage_regime_summary.csv", leverage_summary)
+    write_csv(ROOT / "csvs" / "kernel_bandwidth_robustness.csv", kernel_rows)
+    write_csv(ROOT / "csvs" / "kernel_bandwidth_summary.csv", kernel_summary)
+    write_csv(ROOT / "csvs" / "proxy_stress_recovery.csv", proxy_rows)
+    write_csv(ROOT / "csvs" / "proxy_stress_summary.csv", proxy_summary)
+    write_csv(ROOT / "csvs" / "nonlinear_model_selection.csv", nonlinear_rows)
+    write_csv(ROOT / "csvs" / "nonlinear_model_selection_summary.csv", nonlinear_summary)
+
+    plot_synthetic_recovery(ROOT / "pdfs" / "synthetic_heston_recovery.pdf", synthetic_rows)
+    plot_rho_true_vs_hat(leverage_rows, ROOT / "pdfs" / "rho_true_vs_hat.pdf")
+    plot_leverage_error_by_rho(leverage_rows, ROOT / "pdfs" / "leverage_error_by_rho.pdf")
+    plot_kernel_robustness(kernel_summary, ROOT / "pdfs" / "kernel_bandwidth_robustness.pdf")
+    plot_proxy_stress(proxy_rows, proxy_summary, ROOT / "pdfs" / "proxy_stress_tests.pdf")
+    plot_nonlinear_model_selection(nonlinear_summary, ROOT / "pdfs" / "nonlinear_model_selection_boundaries.pdf")
 
     print("\nDone. Wrote outputs directly to:")
     for name in [
-        "synthetic_ground_truth_recovery.csv",
-        "run_parameters_used.csv",
-        "synthetic_ground_truth_summary.csv",
-        "leverage_regime_recovery.csv",
-        "leverage_regime_summary.csv",
-        "kernel_bandwidth_robustness.csv",
-        "kernel_bandwidth_summary.csv",
-        "proxy_stress_recovery.csv",
-        "proxy_stress_summary.csv",
-        "nonlinear_model_selection.csv",
-        "nonlinear_model_selection_summary.csv",
-        "synthetic_heston_recovery.pdf",
-        "rho_true_vs_hat.pdf",
-        "leverage_error_by_rho.pdf",
-        "kernel_bandwidth_robustness.pdf",
-        "proxy_stress_tests.pdf",
-        "nonlinear_model_selection_boundaries.pdf",
+        "csvs/synthetic_ground_truth_recovery.csv",
+        "csvs/run_parameters_used.csv",
+        "csvs/synthetic_ground_truth_summary.csv",
+        "csvs/leverage_regime_recovery.csv",
+        "csvs/leverage_regime_summary.csv",
+        "csvs/kernel_bandwidth_robustness.csv",
+        "csvs/kernel_bandwidth_summary.csv",
+        "csvs/proxy_stress_recovery.csv",
+        "csvs/proxy_stress_summary.csv",
+        "csvs/nonlinear_model_selection.csv",
+        "csvs/nonlinear_model_selection_summary.csv",
+        "pdfs/synthetic_heston_recovery.pdf",
+        "pdfs/rho_true_vs_hat.pdf",
+        "pdfs/leverage_error_by_rho.pdf",
+        "pdfs/kernel_bandwidth_robustness.pdf",
+        "pdfs/proxy_stress_tests.pdf",
+        "pdfs/nonlinear_model_selection_boundaries.pdf",
     ]:
         print(f"  {ROOT / name}")
 
 
 if __name__ == "__main__":
     main()
+

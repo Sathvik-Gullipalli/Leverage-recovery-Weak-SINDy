@@ -174,9 +174,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def artifact_path(key: str) -> Path:
-    if OUTPUT_PREFIX == "indian_empirical":
-        return ROOT / DEFAULT_ARTIFACTS[key]
-    return ROOT / f"{OUTPUT_PREFIX}_{ARTIFACT_SUFFIXES[key]}"
+    suffix = ARTIFACT_SUFFIXES[key]
+    if suffix.endswith(".pdf"):
+        folder = ROOT / "pdfs"
+    else:
+        folder = ROOT / "csvs"
+    folder.mkdir(exist_ok=True)
+    return folder / f"{OUTPUT_PREFIX}_{suffix}"
 
 
 def estimate_min_valid_days(start_date: str, end_date: str) -> int:
