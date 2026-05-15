@@ -1,0 +1,51 @@
+segment,slot,exchange,tradingsymbol,company_name,coverage_priority,why_selected
+Banks,1,NSE,HDFCBANK,HDFC Bank,core_covid_window,Large private bank; high liquidity; long history
+Banks,2,NSE,ICICIBANK,ICICI Bank,core_covid_window,Large private bank; high liquidity; long history
+Banks,3,NSE,SBIN,State Bank of India,core_covid_window,Large public bank; high liquidity; long history
+Banks,4,NSE,AXISBANK,Axis Bank,core_covid_window,Large private bank; high liquidity; long history
+Banks,5,NSE,KOTAKBANK,Kotak Mahindra Bank,core_covid_window,Large private bank; high liquidity; long history
+Non-bank Financials and Insurance,1,NSE,BAJFINANCE,Bajaj Finance,core_covid_window,Large NBFC; high liquidity; long history
+Non-bank Financials and Insurance,2,NSE,BAJAJFINSV,Bajaj Finserv,core_covid_window,Diversified financial services; high liquidity
+Non-bank Financials and Insurance,3,NSE,HDFCLIFE,HDFC Life Insurance,core_covid_window,Large insurer; listed before COVID window
+Non-bank Financials and Insurance,4,NSE,SBILIFE,SBI Life Insurance,core_covid_window,Large insurer; listed before COVID window
+Non-bank Financials and Insurance,5,NSE,CHOLAFIN,Cholamandalam Investment and Finance,core_covid_window,Large NBFC; liquid long-history finance name
+Information Technology,1,NSE,TCS,Tata Consultancy Services,core_covid_window,IT heavyweight; high liquidity; long history
+Information Technology,2,NSE,INFY,Infosys,core_covid_window,IT heavyweight; high liquidity; long history
+Information Technology,3,NSE,HCLTECH,HCLTech,core_covid_window,Large IT services name; long history
+Information Technology,4,NSE,WIPRO,Wipro,core_covid_window,Large IT services name; long history
+Information Technology,5,NSE,TECHM,Tech Mahindra,core_covid_window,Large IT services name; long history
+Energy and Utilities,1,NSE,RELIANCE,Reliance Industries,core_covid_window,Energy/oil/gas heavyweight; index heavyweight; long history
+Energy and Utilities,2,NSE,ONGC,Oil and Natural Gas Corporation,core_covid_window,Upstream oil/gas; liquid; long history
+Energy and Utilities,3,NSE,COALINDIA,Coal India,core_covid_window,Coal/energy; liquid; long history
+Energy and Utilities,4,NSE,NTPC,NTPC,core_covid_window,Power utility; liquid; long history
+Energy and Utilities,5,NSE,POWERGRID,Power Grid Corporation of India,core_covid_window,Power transmission utility; liquid; long history
+Consumer Staples,1,NSE,HINDUNILVR,Hindustan Unilever,core_covid_window,FMCG heavyweight; defensive consumer exposure
+Consumer Staples,2,NSE,ITC,ITC,core_covid_window,FMCG/tobacco/hotels; high liquidity; long history
+Consumer Staples,3,NSE,NESTLEIND,Nestle India,core_covid_window,FMCG large cap; long history
+Consumer Staples,4,NSE,BRITANNIA,Britannia Industries,core_covid_window,FMCG large cap; long history
+Consumer Staples,5,NSE,DABUR,Dabur India,core_covid_window,FMCG large cap; long history
+Automobiles,1,NSE,M&M,Mahindra and Mahindra,core_covid_window,Auto large cap; long history
+Automobiles,2,NSE,MARUTI,Maruti Suzuki,core_covid_window,Passenger auto heavyweight; long history
+Automobiles,3,NSE,TMPV,Tata Motors,core_covid_window,Auto large cap; use historical symbol for COVID coverage | Kite current-master symbol remap from TATAMOTORS to TMPV for historical token continuity
+Automobiles,4,NSE,BAJAJ-AUTO,Bajaj Auto,core_covid_window,Two-wheeler auto large cap; long history
+Automobiles,5,NSE,EICHERMOT,Eicher Motors,core_covid_window,Auto large cap; long history
+Healthcare,1,NSE,SUNPHARMA,Sun Pharmaceutical Industries,core_covid_window,Pharma heavyweight; long history
+Healthcare,2,NSE,CIPLA,Cipla,core_covid_window,Pharma large cap; long history
+Healthcare,3,NSE,DRREDDY,Dr Reddys Laboratories,core_covid_window,Pharma large cap; long history
+Healthcare,4,NSE,DIVISLAB,Divis Laboratories,core_covid_window,Pharma/API large cap; long history
+Healthcare,5,NSE,APOLLOHOSP,Apollo Hospitals Enterprise,core_covid_window,Healthcare services; liquid long-history name
+Materials Metals and Cement,1,NSE,TATASTEEL,Tata Steel,core_covid_window,Steel large cap; long history
+Materials Metals and Cement,2,NSE,JSWSTEEL,JSW Steel,core_covid_window,Steel large cap; long history
+Materials Metals and Cement,3,NSE,HINDALCO,Hindalco Industries,core_covid_window,Metals large cap; long history
+Materials Metals and Cement,4,NSE,ULTRACEMCO,UltraTech Cement,core_covid_window,Cement heavyweight; long history
+Materials Metals and Cement,5,NSE,GRASIM,Grasim Industries,core_covid_window,Cement/materials conglomerate; long history
+Industrials Capital Goods and Construction,1,NSE,LT,Larsen and Toubro,core_covid_window,Construction/capital projects heavyweight; long history
+Industrials Capital Goods and Construction,2,NSE,BEL,Bharat Electronics,core_covid_window,Defence electronics; liquid long-history name
+Industrials Capital Goods and Construction,3,NSE,SIEMENS,Siemens India,core_covid_window,Capital goods large cap; long history
+Industrials Capital Goods and Construction,4,NSE,ABB,ABB India,core_covid_window,Capital goods large cap; long history
+Industrials Capital Goods and Construction,5,NSE,HAL,Hindustan Aeronautics,core_covid_window,Defence/aerospace; listed before COVID window
+Consumer Discretionary Services and Telecom,1,NSE,BHARTIARTL,Bharti Airtel,core_covid_window,Telecom heavyweight; high liquidity; long history
+Consumer Discretionary Services and Telecom,2,NSE,ASIANPAINT,Asian Paints,core_covid_window,Consumer durables/decorative paints large cap
+Consumer Discretionary Services and Telecom,3,NSE,TITAN,Titan Company,core_covid_window,Consumer discretionary large cap; long history
+Consumer Discretionary Services and Telecom,4,NSE,ADANIPORTS,Adani Ports and SEZ,core_covid_window,Ports/logistics large cap; long history
+Consumer Discretionary Services and Telecom,5,NSE,INDIGO,InterGlobe Aviation,core_covid_window,Aviation/services large cap; listed before COVID window
