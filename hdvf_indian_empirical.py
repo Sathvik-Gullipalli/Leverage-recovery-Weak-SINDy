@@ -898,123 +898,26 @@ def render_all_plots(
     summary: list[dict[str, object]],
 ) -> None:
     try:
-        from PIL import Image, ImageDraw, ImageFont, ImageChops
-    except Exception as exc:
-        print(f"Skipping plots: PIL unavailable: {exc}")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+        import matplotlib.colors as mcolors
+        import numpy as np
+    except ImportError as exc:
+        print(f"Skipping plots: {exc}")
         return
 
-    def save_tight_pdf(image: Image.Image, path: Path) -> None:
-        bg = Image.new(image.mode, image.size, image.getpixel((0, 0)))
-        diff = ImageChops.difference(image, bg)
-        diff = ImageChops.add(diff, diff, 2.0, -100)
-        bbox = diff.getbbox()
-        if bbox:
-            pad = 20
-            bbox = (
-                max(0, bbox[0] - pad),
-                max(0, bbox[1] - pad),
-                min(image.size[0], bbox[2] + pad),
-                min(image.size[1], bbox[3] + pad),
-            )
-            image = image.crop(bbox)
-        image.save(path, format="PDF", resolution=100.0)
-
-    white = (255, 255, 255)
-    black = (35, 35, 35)
-    grey = (110, 110, 110)
-    grid = (225, 225, 225)
-    blue = (35, 87, 165)
-    red = (196, 65, 55)
-    green = (214, 239, 223)
-    yellow = (255, 241, 184)
-    orange = (251, 211, 180)
-    bad = (235, 170, 165)
-    light_blue = (221, 233, 250)
-
-    def font(size: int, bold: bool = False):
-        candidates = [
-            "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
-        ]
-        for candidate in candidates:
-            if candidate and Path(candidate).exists():
-                return ImageFont.truetype(candidate, size)
-        return ImageFont.load_default()
-
-    f_tiny = font(18)
-    f_small = font(22)
-    f = font(26)
-    f_bold = font(30, True)
-    f_title = font(36, True)
-
-    def to_float(value: str, default: float = float("nan")) -> float:
-        try:
-            return float(value)
-        except Exception:
-            return default
-
-    def draw_axes(draw, box, xlim, ylim, title, xlabel, ylabel, x_ticks=None, y_ticks=None):
-        left, top, right, bottom = box
-        draw.rectangle(box, outline=black, width=2)
-        x_ticks = [xlim[0], (xlim[0] + xlim[1]) / 2, xlim[1]] if x_ticks is None else x_ticks
-        y_ticks = [ylim[0], (ylim[0] + ylim[1]) / 2, ylim[1]] if y_ticks is None else y_ticks
-        for x in x_ticks:
-            if xlim[0] < x < xlim[1]:
-                px = left + (x - xlim[0]) / max(xlim[1] - xlim[0], EPS) * (right - left)
-                draw.line([(px, top), (px, bottom)], fill=grid, width=1)
-        for y in y_ticks:
-            if ylim[0] < y < ylim[1]:
-                py = bottom - (y - ylim[0]) / max(ylim[1] - ylim[0], EPS) * (bottom - top)
-                draw.line([(left, py), (right, py)], fill=grid, width=1)
-        draw.text(((left + right) // 2, top - 38), title, fill=black, font=f_bold, anchor="mm")
-        draw.text(((left + right) // 2, bottom + 42), xlabel, fill=black, font=f, anchor="mm")
-        draw_vertical_label(draw, (left - 96, (top + bottom) // 2), ylabel, f_small, black)
-        for x in x_ticks:
-            px = left + (x - xlim[0]) / max(xlim[1] - xlim[0], EPS) * (right - left)
-            draw.text((px, bottom + 10), fmt_tick(x), fill=grey, font=f_small, anchor="mt")
-        for y in y_ticks:
-            py = bottom - (y - ylim[0]) / max(ylim[1] - ylim[0], EPS) * (bottom - top)
-            draw.text((left - 10, py), fmt_tick(y), fill=grey, font=f_small, anchor="rm")
-
-    def draw_vertical_label(draw, center, text, font_obj, fill):
-        bbox = draw.textbbox((0, 0), text, font=font_obj)
-        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        label = Image.new("RGBA", (w + 16, h + 16), (255, 255, 255, 0))
-        label_draw = ImageDraw.Draw(label)
-        label_draw.text((8, 8), text, fill=fill, font=font_obj)
-        rotated = label.rotate(90, expand=True)
-        x = int(center[0] - rotated.size[0] / 2)
-        y = int(center[1] - rotated.size[1] / 2)
-        draw._image.paste(rotated, (x, y), rotated)
-
-    def draw_footer(draw, width, height, text):
-        draw.text((width // 2, height - 30), text, fill=grey, font=f_small, anchor="mm")
-
-    def draw_wrapped(draw, xy, text, max_width, line_gap, fill, font_obj):
-        x, y = xy
-        words = text.split()
-        lines = []
-        current = ""
-        for word in words:
-            candidate = word if not current else f"{current} {word}"
-            width = draw.textbbox((0, 0), candidate, font=font_obj)[2]
-            if width <= max_width or not current:
-                current = candidate
-            else:
-                lines.append(current)
-                current = word
-        if current:
-            lines.append(current)
-        for idx, line in enumerate(lines):
-            draw.text((x, y + idx * line_gap), line, fill=fill, font=font_obj, anchor="la")
-        return y + max(len(lines), 1) * line_gap
-
-    def fmt_tick(value: float) -> str:
-        if abs(value) >= 10:
-            return f"{value:.0f}"
-        if abs(value) >= 1:
-            return f"{value:.2g}"
-        return f"{value:.2f}".rstrip("0").rstrip(".")
+    plt.rcParams.update({
+        "text.usetex": False,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman", "Times New Roman"],
+        "axes.titlesize": 14,
+        "axes.labelsize": 12,
+        "legend.fontsize": 10,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "pdf.fonttype": 42, # Embed fonts in PDFs for text selection
+        "ps.fonttype": 42
+    })
 
     def proxy_short(label: str) -> str:
         return {
@@ -1025,41 +928,11 @@ def render_all_plots(
             "yang_zhang14": "YZ",
         }.get(label, label)
 
-    def map_xy(x, y, xlim, ylim, box):
-        left, top, right, bottom = box
-        return (
-            int(left + (x - xlim[0]) / max(xlim[1] - xlim[0], EPS) * (right - left)),
-            int(bottom - (y - ylim[0]) / max(ylim[1] - ylim[0], EPS) * (bottom - top)),
-        )
-
-    def boxplot(draw, values, x, xlim, ylim, box, color=blue):
-        vals = sorted(v for v in values if math.isfinite(v))
-        if not vals:
-            return
-        q1, med, q3 = quantile(vals, 0.25), quantile(vals, 0.5), quantile(vals, 0.75)
-        vmin, vmax = vals[0], vals[-1]
-        meanv = statistics.fmean(vals)
-        cx, _ = map_xy(x, med, xlim, ylim, box)
-        xl, _ = map_xy(x - 0.18, med, xlim, ylim, box)
-        xr, _ = map_xy(x + 0.18, med, xlim, ylim, box)
-        _, y1 = map_xy(x, q1, xlim, ylim, box)
-        _, y3 = map_xy(x, q3, xlim, ylim, box)
-        _, ym = map_xy(x, med, xlim, ylim, box)
-        _, ymin = map_xy(x, vmin, xlim, ylim, box)
-        _, ymax = map_xy(x, vmax, xlim, ylim, box)
-        _, ymean = map_xy(x, meanv, xlim, ylim, box)
-        draw.line([(cx, ymin), (cx, ymax)], fill=black, width=2)
-        draw.rectangle((xl, y3, xr, y1), outline=color, fill=light_blue, width=3)
-        draw.line([(xl, ym), (xr, ym)], fill=red, width=3)
-        draw.ellipse((cx - 5, ymean - 5, cx + 5, ymean + 5), fill=black)
-
-    def quantile(vals, q):
-        if not vals:
-            return 0.0
-        pos = (len(vals) - 1) * q
-        lo = int(math.floor(pos))
-        hi = int(math.ceil(pos))
-        return vals[lo] if lo == hi else vals[lo] + (vals[hi] - vals[lo]) * (pos - lo)
+    def to_float(value: str, default: float = float("nan")) -> float:
+        try:
+            return float(value)
+        except Exception:
+            return default
 
     def median_key(rows: list[dict[str, object]], key: str, default: float = 0.0) -> float:
         vals = []
@@ -1067,31 +940,12 @@ def render_all_plots(
             value = to_float(row.get(key, ""))
             if math.isfinite(value):
                 vals.append(value)
-        return median(vals, default)
+        return statistics.median(vals) if vals else default
 
-    def line_values(intercept: float, slope: float, xlim: tuple[float, float]) -> list[tuple[float, float]]:
-        xs = [xlim[0] + (xlim[1] - xlim[0]) * i / 239.0 for i in range(240)]
-        return [(x, intercept + slope * x) for x in xs]
-
-    def value_limits(values: list[float]) -> tuple[float, float]:
-        finite = [v for v in values if math.isfinite(v)]
-        if not finite:
-            return -1.0, 1.0
-        lo, hi = min(finite), max(finite)
-        if hi <= lo:
-            pad = max(abs(lo) * 0.1, 1.0)
-            return lo - pad, hi + pad
-        pad = 0.08 * (hi - lo)
-        return lo - pad, hi + pad
-
-    def draw_curve(draw, points, xlim, ylim, box, color=red):
-        mapped = [map_xy(x, y, xlim, ylim, box) for x, y in points if math.isfinite(x) and math.isfinite(y)]
-        if len(mapped) >= 2:
-            draw.line(mapped, fill=color, width=4)
-
-    # Primary Indian generator recovery figure used by the paper.
+    # 1. Primary Indian generator recovery figure
     primary_rows = [r for r in recovery if r.get("proxy") == "realized_var_1m" and r.get("status") == "ok"]
     primary_summary = next((r for r in summary if r.get("proxy") == "realized_var_1m"), {})
+    
     if primary_rows:
         c0 = median_key(primary_rows, "c0")
         c1 = median_key(primary_rows, "c1")
@@ -1106,50 +960,47 @@ def render_all_plots(
             xlim = (0.22, 0.38)
         else:
             centers = [to_float(r.get("v_median", "")) for r in primary_rows]
-            center = median([v for v in centers if math.isfinite(v)], 0.20)
+            finite_centers = [v for v in centers if math.isfinite(v)]
+            center = statistics.median(finite_centers) if finite_centers else 0.20
             half_width = max(0.08, 0.25 * center)
             xlim = (max(EPS, center - half_width), center + half_width)
 
-        drift_points = line_values(c0, c1, xlim)
-        diff_points = line_values(d0, d1, xlim)
-        lev_points = line_values(xv0, xv1, xlim)
-        drift_ylim = value_limits([y for _, y in drift_points])
-        diff_ylim = value_limits([y for _, y in diff_points])
-        lev_ylim = value_limits([y for _, y in lev_points])
+        x_vals = np.linspace(xlim[0], xlim[1], 240)
+        b_v = c0 + c1 * x_vals
+        a_22 = d0 + d1 * x_vals
+        a_12 = xv0 + xv1 * x_vals
 
-        img = Image.new("RGB", (2000, 720), white)
-        draw = ImageDraw.Draw(img)
-        title = f"Indian 1-Minute Recovered Generators ({START_DATE} to {END_DATE}) | ρ={rho:.2f}, κ={kappa:.2f}"
-        draw.text((1000, 55), title, fill=black, font=f_title, anchor="mm")
-        footer = "Balanced Kite 1-minute sample; primary variance state is annualized 1-minute realized variance."
-        draw_footer(draw, 2000, 720, footer)
-        boxes = [(175, 205, 650, 575), (765, 205, 1240, 575), (1355, 205, 1830, 575)]
-        specs = [
-            (boxes[0], drift_points, drift_ylim, "Empirical Variance Drift b_v(v)", "b_v(v), annualized variance/year"),
-            (boxes[1], diff_points, diff_ylim, "Empirical Variance Diffusion a_22(v)", "a_22(v), variance^2/year"),
-            (boxes[2], lev_points, lev_ylim, "Empirical Leverage Effect a_12(v)", "a_12(v), covariance rate/year"),
-        ]
-        for box, points, ylim, panel_title, ylabel in specs:
-            draw_axes(
-                draw,
-                box,
-                xlim,
-                ylim,
-                panel_title,
-                "Annualized variance, v (1/year)",
-                ylabel,
-                x_ticks=[xlim[0], (xlim[0] + xlim[1]) / 2.0, xlim[1]],
-                y_ticks=[ylim[0], (ylim[0] + ylim[1]) / 2.0, ylim[1]],
-            )
-            draw_curve(draw, points, xlim, ylim, box, red)
-            legend_x = box[2] - 150
-            legend_y = box[1] + 34
-            draw.line([(legend_x, legend_y), (legend_x + 55, legend_y)], fill=red, width=4)
-            draw.text((legend_x + 70, legend_y), "estimated", fill=black, font=f_tiny, anchor="lm")
-        save_tight_pdf(img, artifact_path("recovery_pdf"))
+        fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+        fig.suptitle(f"Indian 1-Minute Recovered Generators ({START_DATE} to {END_DATE}) | ρ={rho:.2f}, κ={kappa:.2f}", fontsize=16, fontweight="bold")
+        
+        # Panel 1
+        axs[0].plot(x_vals, b_v, color="#c44137", linewidth=2.5, label="estimated")
+        axs[0].set_title("Empirical Variance Drift $b_v(v)$", fontweight="bold")
+        axs[0].set_xlabel("Annualized variance, v (1/year)")
+        axs[0].set_ylabel("$b_v(v)$, annualized variance/year")
+        
+        # Panel 2
+        axs[1].plot(x_vals, a_22, color="#c44137", linewidth=2.5, label="estimated")
+        axs[1].set_title("Empirical Variance Diffusion $a_{22}(v)$", fontweight="bold")
+        axs[1].set_xlabel("Annualized variance, v (1/year)")
+        axs[1].set_ylabel("$a_{22}(v)$, variance$^2$/year")
+        
+        # Panel 3
+        axs[2].plot(x_vals, a_12, color="#c44137", linewidth=2.5, label="estimated")
+        axs[2].set_title("Empirical Leverage Effect $a_{12}(v)$", fontweight="bold")
+        axs[2].set_xlabel("Annualized variance, v (1/year)")
+        axs[2].set_ylabel("$a_{12}(v)$, covariance rate/year")
+        
+        for ax in axs:
+            ax.grid(True, linestyle="--", alpha=0.7)
+            ax.legend(loc="lower right")
+            
+        fig.text(0.5, -0.05, "Balanced Kite 1-minute sample; primary variance state is annualized 1-minute realized variance.", ha="center", fontsize=10, color="gray")
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.savefig(artifact_path("recovery_pdf"), format="pdf", bbox_inches="tight")
+        plt.close(fig)
 
-    # Company selection plot: show the actual balanced universe rather than a
-    # redundant bar chart where every sector has the same count.
+    # 2. Company selection plot
     selected = [r for r in selection if str(r.get("selected")) == "1"]
     sector_counts = defaultdict(int)
     selected_by_sector: dict[str, list[str]] = defaultdict(list)
@@ -1157,9 +1008,11 @@ def render_all_plots(
         sector = str(row.get("sector", "Other"))
         sector_counts[sector] += 1
         selected_by_sector[sector].append(str(row.get("symbol", "")))
+        
     sector_items = [(sector, sector_counts[sector]) for sector in SECTOR_ORDER if sector_counts[sector]]
     if "Other" not in {sector for sector, _ in sector_items} and sector_counts["Other"]:
         sector_items.append(("Other", sector_counts["Other"]))
+        
     sector_labels = {
         "Banks": "Banks",
         "Non-bank Financials and Insurance": "NBFC/Ins.",
@@ -1183,52 +1036,53 @@ def render_all_plots(
         "Diversified": "Diversified",
         "Other": "Other",
     }
-    img = Image.new("RGB", (1200, 520), white)
-    draw = ImageDraw.Draw(img)
-    draw.text((600, 32), "Balanced Company Selection", fill=black, font=f_title, anchor="mm")
-    draw_footer(draw, 1200, 520, "Balanced Kite 1-minute panel: five companies per segment; not index weighted.")
+    
     palette = [
-        (78, 105, 145),
-        (90, 122, 101),
-        (150, 86, 80),
-        (112, 96, 132),
-        (156, 117, 72),
-        (83, 127, 143),
-        (118, 118, 118),
-        (145, 101, 116),
-        (98, 128, 90),
-        (132, 108, 82),
-        (120, 120, 145),
+        "#4e6991", "#5a7a65", "#965650", "#706084", "#9c7548",
+        "#537f8f", "#767676", "#916574", "#62805a", "#846c52", "#787891"
     ]
-    draw.text((600, 78), "Selected Companies by Segment", fill=black, font=f_bold, anchor="mm")
-    card_w = 210
-    card_h = 145
-    gap_x = 14
-    gap_y = 22
-    start_x = int((1200 - (5 * card_w + 4 * gap_x)) / 2)
-    start_y = 105
+    
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.axis('off')
+    fig.suptitle("Balanced Company Selection", fontsize=16, fontweight="bold")
+    ax.set_title("Selected Companies by Segment", fontsize=14, fontweight="bold", pad=20)
+    
+    card_w = 0.16
+    card_h = 0.25
+    gap_x = 0.04
+    gap_y = 0.10
+    start_x = 0.05
+    start_y = 0.65
+    
     for idx, (sector, count) in enumerate(sector_items):
         col = idx % 5
         row = idx // 5
         x0 = start_x + col * (card_w + gap_x)
-        y0 = start_y + row * (card_h + gap_y)
-        x1 = x0 + card_w
-        y1 = y0 + card_h
+        y0 = start_y - row * (card_h + gap_y)
+        
         color = palette[(idx - 1) % len(palette)]
-        draw.rectangle((x0, y0, x1, y1), outline=(205, 205, 205), width=2)
-        draw.rectangle((x0, y0, x1, y0 + 30), fill=color)
+        
+        rect = patches.Rectangle((x0, y0), card_w, card_h, linewidth=1, edgecolor='#cccccc', facecolor='white', transform=ax.transAxes, clip_on=False)
+        ax.add_patch(rect)
+        
+        header = patches.Rectangle((x0, y0 + card_h - 0.05), card_w, 0.05, linewidth=0, facecolor=color, transform=ax.transAxes, clip_on=False)
+        ax.add_patch(header)
+        
         label = sector_labels.get(sector, sector)
-        draw.text((x0 + 9, y0 + 15), label, fill=white, font=f_tiny, anchor="lm")
-        draw.text((x1 - 9, y0 + 15), f"{count}", fill=white, font=f_tiny, anchor="rm")
+        ax.text(x0 + 0.01, y0 + card_h - 0.025, label, color='white', fontsize=9, va='center', transform=ax.transAxes)
+        ax.text(x0 + card_w - 0.01, y0 + card_h - 0.025, f"{count}", color='white', fontsize=9, ha='right', va='center', transform=ax.transAxes)
+        
         for s_idx, symbol in enumerate(selected_by_sector[sector][:5]):
-            draw.text((x0 + 14, y0 + 47 + s_idx * 19), symbol, fill=black, font=f_tiny, anchor="la")
-    save_tight_pdf(img, artifact_path("company_selection_pdf"))
+            ax.text(x0 + 0.01, y0 + card_h - 0.08 - s_idx * 0.04, symbol, color='black', fontsize=9, va='center', transform=ax.transAxes)
+            
+    fig.text(0.5, 0.01, "Balanced Kite 1-minute panel: five companies per segment; not index weighted.", ha="center", fontsize=10, color="gray")
+    plt.savefig(artifact_path("company_selection_pdf"), format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
-    # Proxy reliability scorecard.
-    img = Image.new("RGB", (1550, 760), white)
-    draw = ImageDraw.Draw(img)
-    draw.text((775, 38), "Indian Empirical Proxy Reliability", fill=black, font=f_title, anchor="mm")
-    draw_footer(draw, 1550, 760, "Cells show pass-rate fractions from 0 to 1 across selected companies; darker cells indicate stronger gate support.")
+    # 3. Proxy reliability scorecard
+    fig, ax = plt.subplots(figsize=(10, 6))
+    fig.suptitle("Indian Empirical Proxy Reliability", fontsize=16, fontweight="bold")
+    
     metrics = [
         ("kappa_positive_rate", "kappa>0"),
         ("theta_positive_rate", "theta>0"),
@@ -1237,68 +1091,76 @@ def render_all_plots(
         ("rho_unit_rate", "|rho|<=1"),
         ("heston_like_rate", "all gates"),
     ]
-    label_w = 170
-    heat_w = 960
-    heat_left = int((1550 - heat_w) / 2)
-    left = heat_left - label_w
-    top_y, bottom = 170, 575
-    right = heat_left + heat_w
-    cell_w = (right - left - label_w) / len(metrics)
-    cell_h = (bottom - top_y) / max(len(summary), 1)
-    def rate_color(v):
-        t = max(0.0, min(1.0, float(v)))
-        start = (246, 248, 252)
-        end = (70, 105, 150)
-        return tuple(int(start[i] * (1.0 - t) + end[i] * t) for i in range(3))
-    for c, (_, label) in enumerate(metrics):
-        x = left + label_w + (c + 0.5) * cell_w
-        draw.text((x, top_y - 20), label, fill=black, font=f_small, anchor="mb")
+    
+    y_labels = [proxy_short(row["proxy"]) for row in summary]
+    x_labels = [label for _, label in metrics]
+    
+    data = np.zeros((len(summary), len(metrics)))
     for r_idx, row in enumerate(summary):
-        y0 = int(top_y + r_idx * cell_h)
-        y1 = int(top_y + (r_idx + 1) * cell_h)
-        draw.text((left + label_w - 14, (y0 + y1) // 2), proxy_short(row["proxy"]), fill=black, font=f_small, anchor="rm")
-        for c, (key, _) in enumerate(metrics):
-            x0 = int(left + label_w + c * cell_w)
-            x1 = int(left + label_w + (c + 1) * cell_w)
-            v = to_float(row[key], 0)
-            draw.rectangle((x0, y0, x1, y1), fill=rate_color(v), outline=white, width=3)
-            draw.text(((x0 + x1) // 2, (y0 + y1) // 2), f"{v:.2f}", fill=black, font=f_small, anchor="mm")
-    draw.rectangle((left + label_w, top_y, right, bottom), outline=black, width=2)
-    bar_left = left + label_w
-    bar_right = right
-    bar_top = bottom + 46
-    bar_bottom = bar_top + 16
-    for x in range(bar_left, bar_right):
-        value = (x - bar_left) / max(1, bar_right - bar_left - 1)
-        draw.line([(x, bar_top), (x, bar_bottom)], fill=rate_color(value))
-    draw.rectangle((bar_left, bar_top, bar_right, bar_bottom), outline=grey, width=1)
-    draw.text((bar_left, bar_bottom + 8), "0.00", fill=grey, font=f_tiny, anchor="lt")
-    draw.text((bar_right, bar_bottom + 8), "1.00", fill=grey, font=f_tiny, anchor="rt")
-    draw.text(((bar_left + bar_right) // 2, bar_bottom + 30), "gate pass-rate fraction", fill=grey, font=f_tiny, anchor="mt")
-    save_tight_pdf(img, artifact_path("proxy_reliability_pdf"))
+        for c_idx, (key, _) in enumerate(metrics):
+            data[r_idx, c_idx] = to_float(row[key], 0.0)
+            
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ["#f6f8fc", "#466996"])
+    im = ax.imshow(data, cmap=cmap, vmin=0, vmax=1, aspect='auto')
+    
+    ax.set_xticks(np.arange(len(x_labels)))
+    ax.set_yticks(np.arange(len(y_labels)))
+    ax.set_xticklabels(x_labels)
+    ax.set_yticklabels(y_labels)
+    
+    for i in range(len(y_labels)):
+        for j in range(len(x_labels)):
+            val = data[i, j]
+            color = "white" if val > 0.6 else "black"
+            ax.text(j, i, f"{val:.2f}", ha="center", va="center", color=color)
+            
+    ax.set_xticks(np.arange(-.5, len(x_labels), 1), minor=True)
+    ax.set_yticks(np.arange(-.5, len(y_labels), 1), minor=True)
+    ax.grid(which="minor", color="white", linestyle='-', linewidth=2)
+    ax.tick_params(which="minor", bottom=False, left=False)
+    
+    cbar = fig.colorbar(im, ax=ax, orientation='horizontal', fraction=0.046, pad=0.15)
+    cbar.set_label("gate pass-rate fraction", color="gray", size=10)
+    cbar.ax.tick_params(colors="gray")
+    
+    fig.text(0.5, 0.01, "Cells show pass-rate fractions from 0 to 1 across selected companies; darker cells indicate stronger gate support.", ha="center", fontsize=10, color="gray")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(artifact_path("proxy_reliability_pdf"), format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
-    # Rho distribution.
+    # 4. Rho distribution
     proxy_order = [r["proxy"] for r in summary]
     rho_groups_all = [[to_float(r["rho"]) for r in recovery if r["proxy"] == proxy and r["status"] == "ok"] for proxy in proxy_order]
     rho_groups = [[v for v in group if math.isfinite(v) and -1.0 <= v <= 1.0] for group in rho_groups_all]
     out_of_range = [sum(1 for v in group if math.isfinite(v) and not (-1.0 <= v <= 1.0)) for group in rho_groups_all]
-    ylo, yhi = -1.0, 1.0
-    img = Image.new("RGB", (1350, 760), white)
-    draw = ImageDraw.Draw(img)
-    draw.text((675, 38), "Recovered Leverage by Proxy", fill=black, font=f_title, anchor="mm")
-    draw_footer(draw, 1350, 760, "Boxes show valid Heston rho values inside [-1, 1]; out-of-range fits are counted below.")
-    box = (105, 150, 1260, 610)
-    draw_axes(draw, box, (0.5, len(proxy_order) + 0.5), (ylo, yhi), "ρ Distribution", "", "Recovered ρ (unitless correlation)", x_ticks=[], y_ticks=[-1.0, -0.5, 0.0, 0.5, 1.0])
-    y_zero = map_xy(0.5, 0, (0.5, len(proxy_order) + 0.5), (ylo, yhi), box)[1]
-    draw.line([(box[0], y_zero), (box[2], y_zero)], fill=red, width=3)
-    for idx, (proxy, values, n_bad) in enumerate(zip(proxy_order, rho_groups, out_of_range), 1):
-        boxplot(draw, values, idx, (0.5, len(proxy_order) + 0.5), (ylo, yhi), box)
-        x, _ = map_xy(idx, ylo, (0.5, len(proxy_order) + 0.5), (ylo, yhi), box)
-        draw.text((x, box[3] + 12), proxy_short(proxy), fill=grey, font=f_tiny, anchor="mt")
-        if n_bad:
-            draw.text((x, box[3] + 38), f"{n_bad} out", fill=red, font=f_tiny, anchor="mt")
-    draw.text(((box[0] + box[2]) // 2, box[3] + 78), "Variance proxy", fill=black, font=f, anchor="mm")
-    save_tight_pdf(img, artifact_path("rho_distribution_pdf"))
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    fig.suptitle("Recovered Leverage by Proxy", fontsize=16, fontweight="bold")
+    
+    ax.boxplot(rho_groups, positions=np.arange(1, len(proxy_order) + 1), patch_artist=True, 
+                       boxprops=dict(facecolor="#dde9fa", color="#2357a5", linewidth=2),
+                       medianprops=dict(color="#c44137", linewidth=2),
+                       whiskerprops=dict(color="black", linewidth=1.5),
+                       capprops=dict(color="black", linewidth=1.5),
+                       flierprops=dict(marker='o', markerfacecolor='black', markersize=3, alpha=0.5))
+    
+    ax.axhline(0, color="#c44137", linewidth=2)
+    
+    ax.set_xticks(np.arange(1, len(proxy_order) + 1))
+    ax.set_xticklabels([proxy_short(p) for p in proxy_order])
+    ax.set_ylim(-1.05, 1.05)
+    ax.set_ylabel("Recovered ρ (unitless correlation)")
+    ax.set_xlabel("Variance proxy")
+    ax.grid(True, linestyle="--", alpha=0.7)
+    
+    for idx, n_bad in enumerate(out_of_range, start=1):
+        if n_bad > 0:
+            ax.text(idx, -1.02, f"{n_bad} out", color="#c44137", ha='center', va='top', fontsize=9)
+            
+    fig.text(0.5, 0.01, "Boxes show valid Heston rho values inside [-1, 1]; out-of-range fits are counted below.", ha="center", fontsize=10, color="gray")
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    plt.savefig(artifact_path("rho_distribution_pdf"), format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
 
 def main() -> None:

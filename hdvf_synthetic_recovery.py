@@ -20,37 +20,6 @@ ROOT = Path(__file__).resolve().parent
 
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageChops
-
-def save_tight_pdf(image: Image.Image, path: Path) -> None:
-    bg = Image.new(image.mode, image.size, image.getpixel((0, 0)))
-    diff = ImageChops.difference(image, bg)
-    diff = ImageChops.add(diff, diff, 2.0, -100)
-    bbox = diff.getbbox()
-    if bbox:
-        pad = 20
-        bbox = (
-            max(0, bbox[0] - pad),
-            max(0, bbox[1] - pad),
-            min(image.size[0], bbox[2] + pad),
-            min(image.size[1], bbox[3] + pad),
-        )
-        image = image.crop(bbox)
-    image.save(path, format="PDF", resolution=100.0)
-
-
-# ==========================================
-# 1. Publication-Ready Plot Settings
-# ==========================================
-
-WHITE = (255, 255, 255)
-BLACK = (35, 35, 35)
-GRID = (224, 224, 224)
-BLUE = (35, 87, 165)
-RED = (196, 65, 55)
-GREY = (110, 110, 110)
-LIGHT_BLUE = (221, 233, 250)
-
 
 # Simple run defaults. Outputs are written directly beside this script.
 # Main synthetic recovery follows Heston_Main (1).pdf, Phase 1 setup.
@@ -840,333 +809,120 @@ def summarize_nonlinear_model_selection(rows: list[dict[str, float | int | str]]
 # ==========================================
 
 
-def load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
-    candidates = [
-        "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
-        "/Library/Fonts/Arial.ttf",
-    ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return ImageFont.truetype(candidate, size=size)
-    return ImageFont.load_default()
-
-
-FONT_TINY = load_font(18)
-FONT_SMALL = load_font(22)
-FONT = load_font(26)
-FONT_BOLD = load_font(30, bold=True)
-FONT_TITLE = load_font(36, bold=True)
-
-
-def nice_range(values: list[np.ndarray] | np.ndarray) -> tuple[float, float]:
-    arr = np.concatenate([np.asarray(v, dtype=float).ravel() for v in values]) if isinstance(values, list) else np.asarray(values, dtype=float).ravel()
-    lo = float(np.nanmin(arr))
-    hi = float(np.nanmax(arr))
-    if not math.isfinite(lo) or not math.isfinite(hi):
-        return 0.0, 1.0
-    if abs(hi - lo) < EPS:
-        pad = max(abs(hi) * 0.1, 1e-3)
-    else:
-        pad = 0.08 * (hi - lo)
-    return lo - pad, hi + pad
-
-
-def map_point(x: float, y: float, xlim: tuple[float, float], ylim: tuple[float, float], box: tuple[int, int, int, int]) -> tuple[int, int]:
-    left, top, right, bottom = box
-    px = left + (x - xlim[0]) / max(xlim[1] - xlim[0], EPS) * (right - left)
-    py = bottom - (y - ylim[0]) / max(ylim[1] - ylim[0], EPS) * (bottom - top)
-    return int(round(px)), int(round(py))
-
-
-def nice_tick_values(lo: float, hi: float, count: int = 5) -> list[float]:
-    if not math.isfinite(lo) or not math.isfinite(hi) or hi <= lo:
-        return [lo, hi]
-    raw_step = (hi - lo) / max(count - 1, 1)
-    exponent = math.floor(math.log10(raw_step))
-    base = raw_step / (10 ** exponent)
-    if base <= 1:
-        nice_base = 1
-    elif base <= 2:
-        nice_base = 2
-    elif base <= 5:
-        nice_base = 5
-    else:
-        nice_base = 10
-    step = nice_base * (10 ** exponent)
-    start = math.ceil(lo / step) * step
-    ticks = []
-    value = start
-    while value <= hi + step * 0.5:
-        if lo - step * 0.25 <= value <= hi + step * 0.25:
-            ticks.append(0.0 if abs(value) < EPS else value)
-        value += step
-    if not ticks:
-        ticks = [lo, hi]
-    return ticks
-
-
-def tick_label(value: float) -> str:
-    if abs(value) >= 10:
-        return f"{value:.0f}"
-    if abs(value) >= 1:
-        return f"{value:.2g}"
-    if abs(value) >= 0.01:
-        return f"{value:.2f}".rstrip("0").rstrip(".")
-    return f"{value:.3g}"
-
-
-def draw_polyline(draw: ImageDraw.ImageDraw, points: list[tuple[int, int]], color: tuple[int, int, int], width: int = 4, dashed: bool = False) -> None:
-    if len(points) < 2:
-        return
-    if not dashed:
-        draw.line(points, fill=color, width=width, joint="curve")
-        return
-    for idx in range(len(points) - 1):
-        if idx % 2 == 0:
-            draw.line([points[idx], points[idx + 1]], fill=color, width=width)
-
-
-def draw_axes(
-    draw: ImageDraw.ImageDraw,
-    box: tuple[int, int, int, int],
-    xlim: tuple[float, float],
-    ylim: tuple[float, float],
-    title: str,
-    xlabel: str,
-    ylabel: str,
-    show_x_ticks: bool = True,
-    show_y_ticks: bool = True,
-    x_ticks: list[float] | None = None,
-    y_ticks: list[float] | None = None,
-    x_tick_labels: list[str] | None = None,
-    y_tick_labels: list[str] | None = None,
-) -> None:
-    left, top, right, bottom = box
-    draw.rectangle(box, outline=BLACK, width=2)
-    x_ticks = nice_tick_values(*xlim) if x_ticks is None else x_ticks
-    y_ticks = nice_tick_values(*ylim) if y_ticks is None else y_ticks
-    x_tick_labels = [tick_label(v) for v in x_ticks] if x_tick_labels is None else x_tick_labels
-    y_tick_labels = [tick_label(v) for v in y_ticks] if y_tick_labels is None else y_tick_labels
-    for x_val in x_ticks:
-        if xlim[0] < x_val < xlim[1]:
-            x, _ = map_point(x_val, ylim[0], xlim, ylim, box)
-            draw.line([(x, top), (x, bottom)], fill=GRID, width=1)
-    for y_val in y_ticks:
-        if ylim[0] < y_val < ylim[1]:
-            _, y = map_point(xlim[0], y_val, xlim, ylim, box)
-            draw.line([(left, y), (right, y)], fill=GRID, width=1)
-    draw.text(((left + right) // 2, top - 42), title, fill=BLACK, font=FONT_BOLD, anchor="mm")
-    draw.text(((left + right) // 2, bottom + 42), xlabel, fill=BLACK, font=FONT, anchor="mm")
-    draw_y_axis_label(draw, (left - 68, (top + bottom) // 2), ylabel)
-    for x_val, label in zip(x_ticks, x_tick_labels):
-        if show_x_ticks:
-            x_px, _ = map_point(x_val, ylim[0], xlim, ylim, box)
-            draw.text((x_px, bottom + 10), label, fill=GREY, font=FONT_SMALL, anchor="mt")
-    for y_val, label in zip(y_ticks, y_tick_labels):
-        if show_y_ticks:
-            _, y_px = map_point(xlim[0], y_val, xlim, ylim, box)
-            draw.text((left - 10, y_px), label, fill=GREY, font=FONT_SMALL, anchor="rm")
-
-
-def draw_y_axis_label(draw: ImageDraw.ImageDraw, center: tuple[int, int], text: str) -> None:
-    bbox = draw.textbbox((0, 0), text, font=FONT_SMALL)
-    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    label = Image.new("RGBA", (w + 16, h + 16), (255, 255, 255, 0))
-    label_draw = ImageDraw.Draw(label)
-    label_draw.text((8, 8), text, fill=BLACK, font=FONT_SMALL)
-    rotated = label.rotate(90, expand=True)
-    x = int(center[0] - rotated.size[0] / 2)
-    y = int(center[1] - rotated.size[1] / 2)
-    draw._image.paste(rotated, (x, y), rotated)
-
-
-def draw_footer(draw: ImageDraw.ImageDraw, width: int, height: int, text: str) -> None:
-    draw.text((width // 2, height - 30), text, fill=GREY, font=FONT_SMALL, anchor="mm")
-
-
-def draw_legend(draw: ImageDraw.ImageDraw, x: int, y: int, labels: list[tuple[str, tuple[int, int, int], bool]]) -> None:
-    for idx, (label, color, dashed) in enumerate(labels):
-        yy = y + idx * 32
-        draw_polyline(draw, [(x, yy), (x + 42, yy)], color, width=4, dashed=dashed)
-        draw.text((x + 54, yy), label, fill=BLACK, font=FONT_SMALL, anchor="lm")
-
-
-def draw_dot_legend(draw: ImageDraw.ImageDraw, x: int, y: int, labels: list[tuple[str, tuple[int, int, int], str]]) -> None:
-    for idx, (label, color, style) in enumerate(labels):
-        yy = y + idx * 32
-        if style == "ring":
-            draw.ellipse((x - 11, yy - 11, x + 11, yy + 11), outline=color, width=4)
-        else:
-            draw.ellipse((x - 8, yy - 8, x + 8, yy + 8), fill=color)
-        draw.text((x + 26, yy), label, fill=BLACK, font=FONT_SMALL, anchor="lm")
-
-
-def draw_swatch_legend(draw: ImageDraw.ImageDraw, x: int, y: int, labels: list[tuple[str, tuple[int, int, int]]], step: int = 32) -> None:
-    for idx, (label, color) in enumerate(labels):
-        yy = y + idx * step
-        draw.rectangle((x, yy - 10, x + 28, yy + 10), fill=color, outline=GREY, width=1)
-        draw.text((x + 40, yy), label, fill=BLACK, font=FONT_SMALL, anchor="lm")
-
-
-def draw_boxplot_key(draw: ImageDraw.ImageDraw, x: int, y: int, include_seed_dots: bool = False) -> None:
-    draw.rectangle((x, y - 12, x + 34, y + 12), outline=BLUE, fill=LIGHT_BLUE, width=3)
-    draw.text((x + 46, y), "box = middle 50% of seeds", fill=BLACK, font=FONT_SMALL, anchor="lm")
-    draw.line([(x, y + 34), (x + 34, y + 34)], fill=RED, width=4)
-    draw.text((x + 46, y + 34), "red line = median", fill=BLACK, font=FONT_SMALL, anchor="lm")
-    draw.ellipse((x + 11, y + 60, x + 23, y + 72), fill=BLACK)
-    draw.text((x + 46, y + 66), "black dot = mean", fill=BLACK, font=FONT_SMALL, anchor="lm")
-    if include_seed_dots:
-        draw.ellipse((x + 10, y + 90, x + 24, y + 104), fill=BLUE)
-        draw.text((x + 46, y + 97), "blue dots = individual seeds", fill=BLACK, font=FONT_SMALL, anchor="lm")
-
-
-def draw_box_distribution(
-    draw: ImageDraw.ImageDraw,
-    values: np.ndarray,
-    x_pos: float,
-    xlim: tuple[float, float],
-    ylim: tuple[float, float],
-    box: tuple[int, int, int, int],
-    color: tuple[int, int, int],
-    fill: tuple[int, int, int],
-    box_width: float = 0.25,
-) -> None:
-    q1, med, q3 = np.quantile(values, [0.25, 0.5, 0.75])
-    vmin, vmax = float(np.min(values)), float(np.max(values))
-    mean = float(np.mean(values))
-    cx = map_point(x_pos, med, xlim, ylim, box)[0]
-    x_left = map_point(x_pos - box_width, med, xlim, ylim, box)[0]
-    x_right = map_point(x_pos + box_width, med, xlim, ylim, box)[0]
-    y_q1 = map_point(x_pos, float(q1), xlim, ylim, box)[1]
-    y_q3 = map_point(x_pos, float(q3), xlim, ylim, box)[1]
-    y_med = map_point(x_pos, float(med), xlim, ylim, box)[1]
-    y_min = map_point(x_pos, vmin, xlim, ylim, box)[1]
-    y_max = map_point(x_pos, vmax, xlim, ylim, box)[1]
-    y_mean = map_point(x_pos, mean, xlim, ylim, box)[1]
-    draw.line([(cx, y_min), (cx, y_max)], fill=BLACK, width=2)
-    draw.rectangle((x_left, y_q3, x_right, y_q1), outline=color, fill=fill, width=3)
-    draw.line([(x_left, y_med), (x_right, y_med)], fill=RED, width=3)
-    draw.ellipse((cx - 5, y_mean - 5, cx + 5, y_mean + 5), fill=BLACK)
-
+def set_matplotlib_rc():
+    try:
+        import matplotlib.pyplot as plt
+        plt.rcParams.update({
+            "text.usetex": False,
+            "font.family": "serif",
+            "font.serif": ["Computer Modern Roman", "Times New Roman"],
+            "axes.titlesize": 14,
+            "axes.labelsize": 12,
+            "legend.fontsize": 10,
+            "xtick.labelsize": 10,
+            "ytick.labelsize": 10,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42
+        })
+        return True
+    except ImportError:
+        return False
 
 def plot_synthetic_recovery(path: Path, rows: list[dict[str, float | int | str]]) -> None:
-    """Plot HDVF-style repeated-trial recovery, not one generator curve."""
-    img = Image.new("RGB", (1750, 890), WHITE)
-    draw = ImageDraw.Draw(img)
-    draw.text((875, 38), "Synthetic Ground-Truth Recovery Across 30 Seeds", fill=BLACK, font=FONT_TITLE, anchor="mm")
-    draw_footer(draw, 1750, 890, "Boxes summarize independent simulations; lower generator error means better recovered dynamics.")
+    if not set_matplotlib_rc(): return
+    import matplotlib.pyplot as plt
 
-    # Panel A: recovered structural parameters normalized by the true value.
     param_specs = [
         ("κ", "kappa_hat", "kappa_true"),
         ("θ", "theta_hat", "theta_true"),
         ("ξ", "xi_hat", "xi_true"),
         ("ρ", "rho_hat", "rho_true"),
     ]
+    
+    fig, axs = plt.subplots(1, 2, figsize=(16, 6))
+    fig.suptitle("Synthetic Ground-Truth Recovery Across 30 Seeds", fontsize=16, fontweight="bold")
+    
     param_values = []
     for _, hat_col, true_col in param_specs:
         vals = np.array([float(row[hat_col]) / float(row[true_col]) for row in rows], dtype=float)
         param_values.append(vals)
-
-    box_a = (110, 160, 825, 650)
-    ylim_a = (0.55, 1.40)
-    xlim_a = (0.5, len(param_specs) + 0.5)
-    draw_axes(
-        draw,
-        box_a,
-        xlim_a,
-        ylim_a,
-        "A. Normalized Parameter Recovery",
-        "Parameter",
-        "Estimate / true (unitless ratio)",
-        show_x_ticks=False,
-        y_ticks=[0.60, 0.80, 1.00, 1.20, 1.40],
-        y_tick_labels=["0.60", "0.80", "1.00", "1.20", "1.40"],
-    )
-    y_true = map_point(0.5, 1.0, xlim_a, ylim_a, box_a)[1]
-    draw.line([(box_a[0], y_true), (box_a[2], y_true)], fill=BLACK, width=3)
-    draw.text((box_a[2] - 12, y_true - 10), "true value = 1", fill=BLACK, font=FONT_SMALL, anchor="rs")
-
-    for idx, ((label, _, _), vals) in enumerate(zip(param_specs, param_values), start=1):
-        rng = np.random.default_rng(idx)
-        for val in vals:
-            jitter = float(rng.uniform(-0.10, 0.10))
-            px, py = map_point(idx + jitter, float(val), xlim_a, ylim_a, box_a)
-            draw.ellipse((px - 4, py - 4, px + 4, py + 4), fill=BLUE)
-        draw_box_distribution(draw, vals, idx, xlim_a, ylim_a, box_a, BLUE, LIGHT_BLUE, box_width=0.22)
-        draw.text((map_point(idx, ylim_a[0], xlim_a, ylim_a, box_a)[0], box_a[3] + 12), label, fill=GREY, font=FONT_SMALL, anchor="mt")
-
-    # Panel B: reliability of the recovered generator components across seeds.
+        
+    axs[0].boxplot(param_values, positions=np.arange(1, len(param_specs) + 1), patch_artist=True,
+                   boxprops=dict(facecolor="#dde9fa", color="#2357a5", linewidth=2),
+                   medianprops=dict(color="#c44137", linewidth=2),
+                   showmeans=True, meanprops=dict(marker='o', markerfacecolor='black', markeredgecolor='black', markersize=5))
+                   
+    rng = np.random.default_rng(42)
+    for idx, vals in enumerate(param_values, start=1):
+        jitter = rng.uniform(-0.1, 0.1, size=len(vals))
+        axs[0].scatter(idx + jitter, vals, color='#2357a5', s=10, alpha=0.5)
+        
+    axs[0].axhline(1.0, color='black', linewidth=2, linestyle='-')
+    axs[0].text(len(param_specs) + 0.3, 1.0, 'true value = 1', va='center')
+    axs[0].set_xticks(np.arange(1, len(param_specs) + 1))
+    axs[0].set_xticklabels([label for label, _, _ in param_specs])
+    axs[0].set_ylim(0.55, 1.40)
+    axs[0].set_title("A. Normalized Parameter Recovery", fontweight="bold")
+    axs[0].set_xlabel("Parameter")
+    axs[0].set_ylabel("Estimate / true (unitless ratio)")
+    axs[0].grid(True, linestyle="--", alpha=0.7)
+    
     error_specs = [
         ("drift", "drift_l2_error"),
         ("diffusion", "diffusion_l2_error"),
         ("cross-diffusion", "cross_diffusion_l2_error"),
     ]
     error_values = [np.array([float(row[col]) for row in rows], dtype=float) for _, col in error_specs]
-
-    box_b = (980, 160, 1660, 650)
-    max_error = float(max(np.max(vals) for vals in error_values))
-    yhi_b = max(0.25, math.ceil(max_error / 0.05) * 0.05)
-    ylim_b = (0.0, yhi_b)
-    xlim_b = (0.5, len(error_specs) + 0.5)
-    draw_axes(
-        draw,
-        box_b,
-        xlim_b,
-        ylim_b,
-        "B. Generator Error Distributions",
-        "Generator component",
-        "Relative L2 error (unitless)",
-        show_x_ticks=False,
-        y_ticks=[round(v, 2) for v in np.linspace(0.0, yhi_b, 4)],
-    )
-    for idx, ((label, _), vals) in enumerate(zip(error_specs, error_values), start=1):
-        draw_box_distribution(draw, vals, idx, xlim_b, ylim_b, box_b, BLUE, LIGHT_BLUE, box_width=0.22)
-        draw.text((map_point(idx, ylim_b[0], xlim_b, ylim_b, box_b)[0], box_b[3] + 12), label, fill=GREY, font=FONT_SMALL, anchor="mt")
-
-    draw_boxplot_key(draw, 1210, 730, include_seed_dots=True)
-    save_tight_pdf(img, path)
+    
+    axs[1].boxplot(error_values, positions=np.arange(1, len(error_specs) + 1), patch_artist=True,
+                   boxprops=dict(facecolor="#dde9fa", color="#2357a5", linewidth=2),
+                   medianprops=dict(color="#c44137", linewidth=2),
+                   showmeans=True, meanprops=dict(marker='o', markerfacecolor='black', markeredgecolor='black', markersize=5))
+                   
+    axs[1].set_xticks(np.arange(1, len(error_specs) + 1))
+    axs[1].set_xticklabels([label for label, _ in error_specs])
+    axs[1].set_title("B. Generator Error Distributions", fontweight="bold")
+    axs[1].set_xlabel("Generator component")
+    axs[1].set_ylabel("Relative L2 error (unitless)")
+    axs[1].grid(True, linestyle="--", alpha=0.7)
+    
+    fig.text(0.5, 0.01, "Boxes summarize independent simulations; lower generator error means better recovered dynamics.", ha="center", fontsize=10, color="gray")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(path, format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
 
 def plot_rho_true_vs_hat(rows: list[dict[str, float | int | str]], path: Path) -> None:
+    if not set_matplotlib_rc(): return
+    import matplotlib.pyplot as plt
+
     rho_true = np.array([float(row["rho_true"]) for row in rows], dtype=float)
     rho_hat = np.array([float(row["rho_hat"]) for row in rows], dtype=float)
-    lo, hi = -0.90, -0.15
-    xlim = (lo, hi)
-    ylim = (lo, hi)
-    box = (125, 170, 810, 705)
-
-    img = Image.new("RGB", (940, 830), WHITE)
-    draw = ImageDraw.Draw(img)
-    draw.text((470, 38), "Multi-Seed Leverage Recovery", fill=BLACK, font=FONT_TITLE, anchor="mm")
-    draw_footer(draw, 940, 830, "Each dot is one seed in one leverage regime; dashed line is exact recovery.")
-    rho_ticks = [-0.85, -0.65, -0.50, -0.20]
-    rho_tick_labels = ["-0.85", "-0.65", "-0.50", "-0.20"]
-    draw_axes(
-        draw,
-        box,
-        xlim,
-        ylim,
-        "Recovered vs True Correlation",
-        "True ρ",
-        "Recovered ρ_hat (unitless)",
-        x_ticks=rho_ticks,
-        y_ticks=rho_ticks,
-        x_tick_labels=rho_tick_labels,
-        y_tick_labels=rho_tick_labels,
-    )
-    diag = [map_point(lo, lo, xlim, ylim, box), map_point(hi, hi, xlim, ylim, box)]
-    draw_polyline(draw, diag, BLACK, width=3, dashed=True)
-    for x, y in zip(rho_true, rho_hat):
-        px, py = map_point(float(x), float(y), xlim, ylim, box)
-        draw.ellipse((px - 5, py - 5, px + 5, py + 5), fill=BLUE)
-    draw_legend(draw, 150, 200, [("dashed = perfect recovery", BLACK, True)])
-    draw_dot_legend(draw, 150, 245, [("blue dot = one seed", BLUE, "dot")])
-    save_tight_pdf(img, path)
+    
+    fig, ax = plt.subplots(figsize=(8, 8))
+    fig.suptitle("Multi-Seed Leverage Recovery", fontsize=16, fontweight="bold")
+    
+    ax.scatter(rho_true, rho_hat, color='#2357a5', alpha=0.7, label='one seed')
+    ax.plot([-0.9, -0.15], [-0.9, -0.15], 'k--', linewidth=2, label='perfect recovery')
+    
+    ax.set_title("Recovered vs True Correlation", fontweight="bold")
+    ax.set_xlabel("True ρ")
+    ax.set_ylabel("Recovered ρ_hat (unitless)")
+    ax.set_xlim(-0.9, -0.15)
+    ax.set_ylim(-0.9, -0.15)
+    ax.grid(True, linestyle="--", alpha=0.7)
+    ax.legend(loc='upper left')
+    
+    fig.text(0.5, 0.01, "Each dot is one seed in one leverage regime; dashed line is exact recovery.", ha="center", fontsize=10, color="gray")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(path, format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
 
 def plot_leverage_error_by_rho(rows: list[dict[str, float | int | str]], path: Path) -> None:
+    if not set_matplotlib_rc(): return
+    import matplotlib.pyplot as plt
+
     grouped_errors = []
     labels = []
     for rho in LEVERAGE_RHOS:
@@ -1174,178 +930,128 @@ def plot_leverage_error_by_rho(rows: list[dict[str, float | int | str]], path: P
         grouped_errors.append(errors)
         labels.append(f"{rho:.2f}")
 
-    all_errors = np.array([err for group in grouped_errors for err in group], dtype=float)
-    xlim = (0.5, len(grouped_errors) + 0.5)
-    yhi = max(0.025, math.ceil(float(np.max(all_errors)) / 0.005) * 0.005)
-    ylim = (0.0, yhi)
-    box = (130, 165, 795, 645)
-
-    img = Image.new("RGB", (930, 900), WHITE)
-    draw = ImageDraw.Draw(img)
-    draw.text((465, 38), "Leverage Error by Correlation Regime", fill=BLACK, font=FONT_TITLE, anchor="mm")
-    draw_footer(draw, 930, 900, "Absolute rho error stays small across weak and strong negative leverage regimes.")
-    draw_axes(
-        draw,
-        box,
-        xlim,
-        ylim,
-        "Distribution Across 30 Seeds",
-        "True ρ",
-        "|ρ_hat - ρ_true| (correlation points)",
-        show_x_ticks=False,
-        y_ticks=[round(v, 3) for v in np.linspace(0.0, yhi, 5)],
-        y_tick_labels=[f"{v:.3f}".rstrip("0").rstrip(".") for v in np.linspace(0.0, yhi, 5)],
-    )
-    left, top, right, bottom = box
-    width = (right - left) / len(grouped_errors)
-    for idx, errors in enumerate(grouped_errors, start=1):
-        vals = np.array(errors, dtype=float)
-        q1, med, q3 = np.quantile(vals, [0.25, 0.5, 0.75])
-        vmin, vmax = float(np.min(vals)), float(np.max(vals))
-        mean = float(np.mean(vals))
-        cx = left + (idx - 0.5) * width
-        box_w = width * 0.34
-        y_q1 = map_point(idx, float(q1), xlim, ylim, box)[1]
-        y_q3 = map_point(idx, float(q3), xlim, ylim, box)[1]
-        y_med = map_point(idx, float(med), xlim, ylim, box)[1]
-        y_min = map_point(idx, vmin, xlim, ylim, box)[1]
-        y_max = map_point(idx, vmax, xlim, ylim, box)[1]
-        y_mean = map_point(idx, mean, xlim, ylim, box)[1]
-        draw.line([(cx, y_min), (cx, y_max)], fill=BLACK, width=2)
-        draw.rectangle((cx - box_w, y_q3, cx + box_w, y_q1), outline=BLUE, fill=LIGHT_BLUE, width=3)
-        draw.line([(cx - box_w, y_med), (cx + box_w, y_med)], fill=RED, width=3)
-        draw.ellipse((cx - 5, y_mean - 5, cx + 5, y_mean + 5), fill=BLACK)
-        draw.text((cx, bottom + 10), labels[idx - 1], fill=GREY, font=FONT_SMALL, anchor="mt")
-    draw_boxplot_key(draw, 600, 720, include_seed_dots=False)
-    save_tight_pdf(img, path)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    fig.suptitle("Leverage Error by Correlation Regime", fontsize=16, fontweight="bold")
+    
+    ax.boxplot(grouped_errors, positions=np.arange(1, len(grouped_errors) + 1), patch_artist=True,
+               boxprops=dict(facecolor="#dde9fa", color="#2357a5", linewidth=2),
+               medianprops=dict(color="#c44137", linewidth=2),
+               showmeans=True, meanprops=dict(marker='o', markerfacecolor='black', markeredgecolor='black', markersize=5))
+               
+    ax.set_xticks(np.arange(1, len(grouped_errors) + 1))
+    ax.set_xticklabels(labels)
+    ax.set_title("Distribution Across 30 Seeds", fontweight="bold")
+    ax.set_xlabel("True ρ")
+    ax.set_ylabel("|ρ_hat - ρ_true| (correlation points)")
+    ax.grid(True, linestyle="--", alpha=0.7)
+    
+    fig.text(0.5, 0.01, "Absolute rho error stays small across weak and strong negative leverage regimes.", ha="center", fontsize=10, color="gray")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(path, format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
 
 def plot_kernel_robustness(summary_rows: list[dict[str, float | int | str]], path: Path) -> None:
-    """Show kernel robustness as heatmaps for drift, diffusion, and leverage."""
-    def heat_color(value: float, lo: float, hi: float) -> tuple[int, int, int]:
-        t = 0.0 if hi <= lo else (value - lo) / (hi - lo)
-        t = max(0.0, min(1.0, t))
-        start = np.array([246, 248, 252], dtype=float)
-        end = np.array([70, 105, 150], dtype=float)
-        rgb = start * (1.0 - t) + end * t
-        return tuple(int(x) for x in rgb)
-
-    def draw_color_scale(
-        box: tuple[int, int, int, int],
-        value_range: tuple[float, float],
-    ) -> None:
-        left, top, right, bottom = box
-        lo, hi = value_range
-        bar_left = left + 38
-        bar_right = right - 38
-        bar_top = bottom + 76
-        bar_bottom = bar_top + 16
-        for x in range(bar_left, bar_right):
-            t = (x - bar_left) / max(1, bar_right - bar_left - 1)
-            value = lo + t * (hi - lo)
-            draw.line([(x, bar_top), (x, bar_bottom)], fill=heat_color(value, lo, hi))
-        draw.rectangle((bar_left, bar_top, bar_right, bar_bottom), outline=GREY, width=1)
-        draw.text((bar_left, bar_bottom + 8), f"{lo:.3g}", fill=GREY, font=FONT_TINY, anchor="lt")
-        draw.text((bar_right, bar_bottom + 8), f"{hi:.3g}", fill=GREY, font=FONT_TINY, anchor="rt")
-        draw.text(((bar_left + bar_right) // 2, bar_bottom + 30), "lower median L2 error  ->  higher", fill=GREY, font=FONT_TINY, anchor="mt")
-
-    def draw_heatmap_panel(
-        box: tuple[int, int, int, int],
-        metric: str,
-        title: str,
-        value_range: tuple[float, float],
-    ) -> None:
-        left, top, right, bottom = box
-        draw.text(((left + right) // 2, top - 36), title, fill=BLACK, font=FONT_BOLD, anchor="mm")
-        cell_w = (right - left) / len(BANDWIDTH_FACTOR_GRID)
-        cell_h = (bottom - top) / len(KERNEL_CENTER_GRID)
-        lookup = {
-            (int(row["kernel_centers"]), float(row["bandwidth_factor"])): float(row[metric])
-            for row in summary_rows
-        }
-        for y_idx, centers in enumerate(KERNEL_CENTER_GRID):
-            for x_idx, bandwidth in enumerate(BANDWIDTH_FACTOR_GRID):
-                x0 = int(left + x_idx * cell_w)
-                x1 = int(left + (x_idx + 1) * cell_w)
-                y0 = int(top + y_idx * cell_h)
-                y1 = int(top + (y_idx + 1) * cell_h)
-                value = lookup[(centers, bandwidth)]
-                draw.rectangle((x0, y0, x1, y1), fill=heat_color(value, *value_range), outline=WHITE, width=2)
-                draw.text(((x0 + x1) // 2, (y0 + y1) // 2), f"{value:.3g}", fill=BLACK, font=FONT_SMALL, anchor="mm")
-                if centers == KERNEL_CENTERS and abs(bandwidth - BANDWIDTH_FACTOR) < 1e-12:
-                    draw.rectangle((x0 + 4, y0 + 4, x1 - 4, y1 - 4), outline=RED, width=4)
-        draw.rectangle(box, outline=BLACK, width=2)
-        for x_idx, bandwidth in enumerate(BANDWIDTH_FACTOR_GRID):
-            x = left + (x_idx + 0.5) * cell_w
-            draw.text((x, bottom + 12), f"{bandwidth:g}", fill=GREY, font=FONT_SMALL, anchor="mt")
-        for y_idx, centers in enumerate(KERNEL_CENTER_GRID):
-            y = top + (y_idx + 0.5) * cell_h
-            draw.text((left - 12, y), str(centers), fill=GREY, font=FONT_SMALL, anchor="rm")
-        draw.text(((left + right) // 2, bottom + 45), "Bandwidth factor", fill=BLACK, font=FONT_SMALL, anchor="mt")
-        draw.text((left - 4, top - 8), "Centers", fill=BLACK, font=FONT_SMALL, anchor="rs")
-        draw_color_scale(box, value_range)
+    if not set_matplotlib_rc(): return
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
 
     metrics = [
         ("drift_l2_error_median", "Variance Drift Error"),
         ("diffusion_l2_error_median", "Variance Diffusion Error"),
         ("cross_diffusion_l2_error_median", "Leverage / Cross-Diffusion Error"),
     ]
-    img = Image.new("RGB", (1850, 735), WHITE)
-    draw = ImageDraw.Draw(img)
-    draw.text((925, 42), "Kernel and Bandwidth Robustness", fill=BLACK, font=FONT_TITLE, anchor="mm")
-    draw_footer(draw, 1850, 735, "Rows are kernel centers; columns are bandwidth factors; cells show median relative L2 error; red box marks default.")
-    boxes = [(105, 160, 530, 520), (710, 160, 1135, 520), (1315, 160, 1740, 520)]
-    for box, (metric, title) in zip(boxes, metrics):
+    
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+    fig.suptitle("Kernel and Bandwidth Robustness", fontsize=16, fontweight="bold")
+    
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ["#f6f8fc", "#466996"])
+    
+    for idx, (metric, title) in enumerate(metrics):
         values = np.array([float(row[metric]) for row in summary_rows], dtype=float)
-        draw_heatmap_panel(box, metric, title, (float(np.min(values)), float(np.max(values))))
-    save_tight_pdf(img, path)
+        vmin, vmax = float(np.min(values)), float(np.max(values))
+        
+        data = np.zeros((len(KERNEL_CENTER_GRID), len(BANDWIDTH_FACTOR_GRID)))
+        lookup = {
+            (int(row["kernel_centers"]), float(row["bandwidth_factor"])): float(row[metric])
+            for row in summary_rows
+        }
+        
+        for y_idx, centers in enumerate(KERNEL_CENTER_GRID):
+            for x_idx, bandwidth in enumerate(BANDWIDTH_FACTOR_GRID):
+                data[y_idx, x_idx] = lookup[(centers, bandwidth)]
+                
+        im = axs[idx].imshow(data, cmap=cmap, vmin=vmin, vmax=vmax, aspect='auto')
+        
+        axs[idx].set_xticks(np.arange(len(BANDWIDTH_FACTOR_GRID)))
+        axs[idx].set_yticks(np.arange(len(KERNEL_CENTER_GRID)))
+        axs[idx].set_xticklabels([f"{v:g}" for v in BANDWIDTH_FACTOR_GRID])
+        axs[idx].set_yticklabels([str(v) for v in KERNEL_CENTER_GRID])
+        axs[idx].set_title(title, fontweight="bold")
+        axs[idx].set_xlabel("Bandwidth factor")
+        if idx == 0:
+            axs[idx].set_ylabel("Centers")
+            
+        for i in range(len(KERNEL_CENTER_GRID)):
+            for j in range(len(BANDWIDTH_FACTOR_GRID)):
+                val = data[i, j]
+                color = "white" if (val - vmin) / max(1e-12, vmax - vmin) > 0.6 else "black"
+                axs[idx].text(j, i, f"{val:.3g}", ha="center", va="center", color=color)
+                
+                # Mark default
+                if KERNEL_CENTER_GRID[i] == KERNEL_CENTERS and abs(BANDWIDTH_FACTOR_GRID[j] - BANDWIDTH_FACTOR) < 1e-12:
+                    rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor='red', linewidth=3)
+                    axs[idx].add_patch(rect)
+                    
+        cbar = fig.colorbar(im, ax=axs[idx], orientation='horizontal', fraction=0.046, pad=0.15)
+        cbar.set_label("median relative L2 error", color="gray", size=10)
+        
+    fig.text(0.5, 0.01, "Rows are kernel centers; columns are bandwidth factors; cells show median relative L2 error; red box marks default.", ha="center", fontsize=10, color="gray")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(path, format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
 
 def short_proxy_label(label: str) -> str:
-    if label == "true_v":
-        return "true"
-    if label == "raw_gk":
-        return "raw"
-    if label.startswith("shifted_ewma_"):
-        return "s" + label.rsplit("_", 1)[-1]
+    if label == "true_v": return "true"
+    if label == "raw_gk": return "raw"
+    if label.startswith("shifted_ewma_"): return "s" + label.rsplit("_", 1)[-1]
     return label
 
 
 def plot_proxy_stress(rows: list[dict[str, float | int | str]], summary_rows: list[dict[str, float | str]], path: Path) -> None:
-    labels = [str(row["proxy_type"]) for row in summary_rows]
-    box_a = (125, 165, 785, 655)
-    box_b = (930, 165, 1690, 655)
-    img = Image.new("RGB", (1760, 820), WHITE)
-    draw = ImageDraw.Draw(img)
-    draw.text((880, 38), "Synthetic Proxy Stress Tests", fill=BLACK, font=FONT_TITLE, anchor="mm")
-    draw_footer(draw, 1760, 820, "Left: proxy noise across seeds. Right: which proxies preserve recovered generator components.")
+    if not set_matplotlib_rc(): return
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
 
+    labels = [str(row["proxy_type"]) for row in summary_rows]
+    
+    fig, axs = plt.subplots(1, 2, figsize=(16, 6), gridspec_kw={'width_ratios': [1, 1.5]})
+    fig.suptitle("Synthetic Proxy Stress Tests", fontsize=16, fontweight="bold")
+    
+    # Panel A
     nsr_groups = [
         np.array([float(row["proxy_nsr"]) for row in rows if str(row["proxy_type"]) == label], dtype=float)
         for label in labels
     ]
-    xlim = (0.5, len(labels) + 0.5)
-    ylim = (0.0, 1.0)
-    draw_axes(
-        draw,
-        box_a,
-        xlim,
-        ylim,
-        "A. Proxy Noise-to-Signal",
-        "Proxy choice",
-        "Proxy noise / signal (unitless ratio)",
-        show_x_ticks=False,
-        y_ticks=[0.00, 0.25, 0.50, 0.75, 1.00],
-        y_tick_labels=["0.00", "0.25", "0.50", "0.75", "1.00"],
-    )
-    y_gate = map_point(0.5, 0.32, xlim, ylim, box_a)[1]
-    if box_a[1] <= y_gate <= box_a[3]:
-        draw.line([(box_a[0], y_gate), (box_a[2], y_gate)], fill=RED, width=3)
-        draw.text((box_a[2] - 12, y_gate - 8), "stress gate = 0.32", fill=RED, font=FONT_SMALL, anchor="rs")
-    for idx, vals in enumerate(nsr_groups, start=1):
-        draw_box_distribution(draw, vals, idx, xlim, ylim, box_a, BLUE, LIGHT_BLUE, box_width=0.20)
-        draw.text((map_point(idx, ylim[0], xlim, ylim, box_a)[0], box_a[3] + 12), short_proxy_label(labels[idx - 1]), fill=GREY, font=FONT_SMALL, anchor="mt")
-
+    
+    axs[0].boxplot(nsr_groups, positions=np.arange(1, len(labels) + 1), patch_artist=True,
+                   boxprops=dict(facecolor="#dde9fa", color="#2357a5", linewidth=2),
+                   medianprops=dict(color="#c44137", linewidth=2),
+                   showmeans=True, meanprops=dict(marker='o', markerfacecolor='black', markeredgecolor='black', markersize=5))
+                   
+    axs[0].axhline(0.32, color='red', linewidth=2, linestyle='-')
+    axs[0].text(len(labels) + 0.3, 0.32, 'stress gate = 0.32', color='red', va='bottom', ha='right')
+    
+    axs[0].set_xticks(np.arange(1, len(labels) + 1))
+    axs[0].set_xticklabels([short_proxy_label(l) for l in labels])
+    axs[0].set_ylim(0, 1.0)
+    axs[0].set_title("A. Proxy Noise-to-Signal", fontweight="bold")
+    axs[0].set_xlabel("Proxy choice")
+    axs[0].set_ylabel("Proxy noise / signal (unitless ratio)")
+    axs[0].grid(True, linestyle="--", alpha=0.7)
+    
+    # Panel B
     selected = [row for row in summary_rows if str(row["proxy_type"]) in {"true_v", "raw_gk", "shifted_ewma_14"}]
     metric_specs = [
         ("drift_l2_error_median", "Drift"),
@@ -1353,89 +1059,52 @@ def plot_proxy_stress(rows: list[dict[str, float | int | str]], summary_rows: li
         ("cross_diffusion_l2_error_median", "Leverage"),
         ("rho_abs_error_median", "Rho abs"),
     ]
-    left, top, right, bottom = box_b
-    draw.text(((left + right) // 2, top - 42), "B. Proxy Reliability Scorecard", fill=BLACK, font=FONT_BOLD, anchor="mm")
-    draw.text(((left + right) // 2, top - 12), "Cells show median error; darker blue means larger error", fill=GREY, font=FONT_TINY, anchor="mm")
-
-    table_width = 620
-    table_left = int((left + right - table_width) / 2)
-    table_top = top + 72
-    table_right = table_left + table_width
-    table_bottom = bottom - 95
-    label_w = 110
-    cell_w = (table_right - table_left - label_w) / len(metric_specs)
-    cell_h = (table_bottom - table_top) / len(selected)
-
+    
+    data = np.zeros((len(selected), len(metric_specs)))
+    for r_idx, row in enumerate(selected):
+        for c_idx, (metric, _) in enumerate(metric_specs):
+            data[r_idx, c_idx] = float(row[metric])
+            
     outlier_threshold = 10.0
-    selected_values = [float(row[metric]) for row in selected for metric, _ in metric_specs]
-    gradient_values = [v for v in selected_values if v <= outlier_threshold]
-    color_lo = min(gradient_values) if gradient_values else 0.0
-    color_hi = max(gradient_values) if gradient_values else 1.0
-
-    def reliability_color(value: float) -> tuple[int, int, int]:
-        if value > outlier_threshold:
-            return (150, 86, 80)
-        t = 0.0 if color_hi <= color_lo else (float(value) - color_lo) / (color_hi - color_lo)
-        t = max(0.0, min(1.0, t))
-        start = np.array([246, 248, 252], dtype=float)
-        end = np.array([70, 105, 150], dtype=float)
-        rgb = start * (1.0 - t) + end * t
-        return tuple(int(x) for x in rgb)
-
-    for col_idx, (_, label) in enumerate(metric_specs):
-        x = table_left + label_w + (col_idx + 0.5) * cell_w
-        draw.text((x, table_top - 18), label, fill=BLACK, font=FONT_SMALL, anchor="mb")
-    for row_idx, row in enumerate(selected):
-        y0 = int(table_top + row_idx * cell_h)
-        y1 = int(table_top + (row_idx + 1) * cell_h)
-        proxy_label = short_proxy_label(str(row["proxy_type"]))
-        draw.text((table_left + label_w - 14, (y0 + y1) // 2), proxy_label, fill=BLACK, font=FONT_SMALL, anchor="rm")
-        for col_idx, (metric, _) in enumerate(metric_specs):
-            x0 = int(table_left + label_w + col_idx * cell_w)
-            x1 = int(table_left + label_w + (col_idx + 1) * cell_w)
-            value = float(row[metric])
-            draw.rectangle((x0, y0, x1, y1), fill=reliability_color(value), outline=WHITE, width=3)
-            text = f"{value:.2g}" if value <= outlier_threshold else f"{value:.1f}*"
-            draw.text(((x0 + x1) // 2, (y0 + y1) // 2), text, fill=BLACK, font=FONT_SMALL, anchor="mm")
-    draw.rectangle((table_left + label_w, table_top, table_right, table_bottom), outline=BLACK, width=2)
-
-    bar_left = table_left + label_w
-    bar_right = table_right
-    bar_top = bottom - 56
-    bar_bottom = bar_top + 16
-    for x in range(bar_left, bar_right):
-        frac = (x - bar_left) / max(1, bar_right - bar_left - 1)
-        value = color_lo + frac * (color_hi - color_lo)
-        draw.line([(x, bar_top), (x, bar_bottom)], fill=reliability_color(value))
-    draw.rectangle((bar_left, bar_top, bar_right, bar_bottom), outline=GREY, width=1)
-    draw.text((bar_left, bar_bottom + 8), f"{color_lo:.2g}", fill=GREY, font=FONT_TINY, anchor="lt")
-    draw.text((bar_right, bar_bottom + 8), f"{color_hi:.2g}", fill=GREY, font=FONT_TINY, anchor="rt")
-    draw.text(((bar_left + bar_right) // 2, bar_bottom + 28), "median error scale", fill=GREY, font=FONT_TINY, anchor="mt")
-    draw.rectangle((bar_left, bar_bottom + 42, bar_left + 20, bar_bottom + 58), fill=(150, 86, 80), outline=GREY, width=1)
-    draw.text((bar_left + 28, bar_bottom + 50), "* off-scale raw GK drift/diffusion errors > 10", fill=GREY, font=FONT_TINY, anchor="lm")
-    save_tight_pdf(img, path)
-
-
-def draw_metric_line(
-    draw: ImageDraw.ImageDraw,
-    x_values: np.ndarray,
-    y_values: np.ndarray,
-    xlim: tuple[float, float],
-    ylim: tuple[float, float],
-    box: tuple[int, int, int, int],
-    color: tuple[int, int, int],
-    label_points: bool = False,
-) -> None:
-    points = [map_point(float(x), float(y), xlim, ylim, box) for x, y in zip(x_values, y_values)]
-    draw_polyline(draw, points, color, width=4)
-    for point, y in zip(points, y_values):
-        px, py = point
-        draw.ellipse((px - 6, py - 6, px + 6, py + 6), fill=color)
-        if label_points:
-            draw.text((px, py - 14), f"{float(y):.2g}", fill=color, font=FONT_SMALL, anchor="mb")
+    valid_data = data[data <= outlier_threshold]
+    vmin, vmax = (np.min(valid_data), np.max(valid_data)) if len(valid_data) > 0 else (0, 1)
+    
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", ["#f6f8fc", "#466996"])
+    cmap.set_over('#965650') # Red for outliers
+    
+    im = axs[1].imshow(data, cmap=cmap, vmin=vmin, vmax=vmax, aspect='auto')
+    
+    axs[1].set_xticks(np.arange(len(metric_specs)))
+    axs[1].set_yticks(np.arange(len(selected)))
+    axs[1].set_xticklabels([label for _, label in metric_specs])
+    axs[1].set_yticklabels([short_proxy_label(str(row["proxy_type"])) for row in selected])
+    axs[1].set_title("B. Proxy Reliability Scorecard", fontweight="bold")
+    
+    for i in range(len(selected)):
+        for j in range(len(metric_specs)):
+            val = data[i, j]
+            if val > outlier_threshold:
+                text = f"{val:.1f}*"
+                color = "white"
+            else:
+                text = f"{val:.2g}"
+                color = "white" if (val - vmin) / max(1e-12, vmax - vmin) > 0.6 else "black"
+            axs[1].text(j, i, text, ha="center", va="center", color=color)
+            
+    cbar = fig.colorbar(im, ax=axs[1], orientation='horizontal', fraction=0.046, pad=0.15, extend='max')
+    cbar.set_label("median error scale", color="gray", size=10)
+    axs[1].text(0, -0.25, "* off-scale raw GK drift/diffusion errors > 10", color='gray', fontsize=10, transform=axs[1].transAxes)
+    
+    fig.text(0.5, 0.01, "Left: proxy noise across seeds. Right: which proxies preserve recovered generator components.", ha="center", fontsize=10, color="gray")
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(path, format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
 
 def plot_nonlinear_model_selection(summary_rows: list[dict[str, float | str]], path: Path) -> None:
+    if not set_matplotlib_rc(): return
+    import matplotlib.pyplot as plt
+
     betas = np.array([float(row["beta_true"]) for row in summary_rows], dtype=float)
     linear = np.array([float(row["linear_confirmed_rate"]) for row in summary_rows], dtype=float)
     inconclusive = np.array([float(row["inconclusive_rate"]) for row in summary_rows], dtype=float)
@@ -1443,102 +1112,58 @@ def plot_nonlinear_model_selection(summary_rows: list[dict[str, float | str]], p
     bic_pass = np.array([float(row["bic_prefers_quadratic_rate"]) for row in summary_rows], dtype=float)
     validation_pass = np.array([float(row["validation_gate_pass_rate"]) for row in summary_rows], dtype=float)
     bootstrap_pass = np.array([float(row["bootstrap_gate_pass_rate"]) for row in summary_rows], dtype=float)
-
-    img = Image.new("RGB", (2050, 900), WHITE)
-    draw = ImageDraw.Draw(img)
-    draw.text((1025, 38), "Nonlinear Drift Model-Selection: What Is Tested and What Fails", fill=BLACK, font=FONT_TITLE, anchor="mm")
-    draw_footer(draw, 2050, 900, "The selector is conservative: nonlinear claims require BIC, validation, and bootstrap support to agree.")
-
-    # Panel A: show the actual ground-truth drift shapes.
+    
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+    fig.suptitle("Nonlinear Drift Model-Selection: What Is Tested and What Fails", fontsize=16, fontweight="bold")
+    
+    # Panel A
     params = NonlinearSVParams()
     v_grid = np.linspace(0.005, 0.13, 200)
-    shape_betas = [0.0, 5.0, 15.0]
-    curves = [
-        params.kappa * (params.theta - v_grid) - beta * (v_grid - params.theta) ** 2
-        for beta in shape_betas
-    ]
-    box_a = (90, 165, 605, 650)
-    xlim_a = (float(np.min(v_grid)), float(np.max(v_grid)))
-    ylim_a = nice_range(curves)
-    draw_axes(
-        draw,
-        box_a,
-        xlim_a,
-        ylim_a,
-        "A. Ground-Truth Drift Shapes",
-        "Variance, v (annualized 1/year)",
-        "b_v(v), annualized variance/year",
-        x_ticks=[0.02, 0.05, 0.08, 0.11],
-        x_tick_labels=["0.02", "0.05", "0.08", "0.11"],
-    )
-    for beta, curve, color, dashed in [
-        (0.0, curves[0], BLACK, False),
-        (5.0, curves[1], BLUE, False),
-        (15.0, curves[2], RED, False),
-    ]:
-        points = [map_point(float(x), float(y), xlim_a, ylim_a, box_a) for x, y in zip(v_grid, curve)]
-        draw_polyline(draw, points, color, width=4, dashed=dashed)
-    draw_legend(draw, 155, 730, [("beta=0 linear", BLACK, False), ("beta=5 nonlinear", BLUE, False), ("beta=15 nonlinear", RED, False)])
-
-    # Panel B: final selector outcomes are easier to read as stacked bars.
-    box_b = (775, 165, 1290, 650)
-    xlim_b = (0.5, len(betas) + 0.5)
-    ylim_b = (0.0, 1.0)
-    draw_axes(
-        draw,
-        box_b,
-        xlim_b,
-        ylim_b,
-        "B. Final Decision Across 30 Seeds",
-        "Quadratic strength beta",
-        "Fraction of seeds (0-1)",
-        show_x_ticks=False,
-        y_ticks=[0.00, 0.25, 0.50, 0.75, 1.00],
-        y_tick_labels=["0", "0.25", "0.50", "0.75", "1.00"],
-    )
-    left, top, right, bottom = box_b
-    bar_w = (right - left) / len(betas) * 0.48
-    for idx, beta in enumerate(betas, start=1):
-        cx = map_point(idx, 0, xlim_b, ylim_b, box_b)[0]
-        y0 = bottom
-        segments = [
-            (linear[idx - 1], GREY, "linear"),
-            (inconclusive[idx - 1], LIGHT_BLUE, "inconclusive"),
-            (selected[idx - 1], BLUE, "quadratic"),
-        ]
-        cumulative = 0.0
-        for rate, color, _ in segments:
-            cumulative += float(rate)
-            y1 = map_point(idx, cumulative, xlim_b, ylim_b, box_b)[1]
-            draw.rectangle((cx - bar_w / 2, y1, cx + bar_w / 2, y0), fill=color, outline=WHITE)
-            y0 = y1
-        draw.text((cx, bottom + 12), f"{beta:g}", fill=GREY, font=FONT_SMALL, anchor="mt")
-    draw_swatch_legend(draw, 990, 735, [("linear confirmed", GREY), ("inconclusive", LIGHT_BLUE), ("quadratic detected", BLUE)], step=28)
-
-    # Panel C: show which required evidence gates pass before final selection.
-    box_c = (1460, 165, 1975, 650)
-    xlim_c = (min(betas) - 0.5, max(betas) + 0.5)
-    ylim_c = (-0.05, 1.05)
-    draw_axes(
-        draw,
-        box_c,
-        xlim_c,
-        ylim_c,
-        "C. Evidence Gate Pass Rates",
-        "Quadratic strength beta",
-        "Fraction of seeds (0-1)",
-        x_ticks=[0, 5, 10, 15],
-        y_ticks=[0.00, 0.25, 0.50, 0.75, 1.00],
-        y_tick_labels=["0", "0.25", "0.50", "0.75", "1.00"],
-    )
-    y_gate = map_point(xlim_c[0], 0.70, xlim_c, ylim_c, box_c)[1]
-    draw.line([(box_c[0], y_gate), (box_c[2], y_gate)], fill=GREY, width=2)
-    draw.text((box_c[2] - 10, y_gate - 8), "0.70 support gate", fill=GREY, font=FONT_TINY, anchor="rs")
-    draw_metric_line(draw, betas, bic_pass, xlim_c, ylim_c, box_c, BLACK)
-    draw_metric_line(draw, betas, validation_pass, xlim_c, ylim_c, box_c, RED)
-    draw_metric_line(draw, betas, bootstrap_pass, xlim_c, ylim_c, box_c, BLUE)
-    draw_legend(draw, 1575, 730, [("BIC prefers quadratic", BLACK, False), ("validation improves", RED, False), ("bootstrap supports term", BLUE, False)])
-    save_tight_pdf(img, path)
+    
+    axs[0].plot(v_grid, params.kappa * (params.theta - v_grid) - 0.0 * (v_grid - params.theta) ** 2, 'k-', linewidth=2, label="beta=0 linear")
+    axs[0].plot(v_grid, params.kappa * (params.theta - v_grid) - 5.0 * (v_grid - params.theta) ** 2, color='#2357a5', linewidth=2, label="beta=5 nonlinear")
+    axs[0].plot(v_grid, params.kappa * (params.theta - v_grid) - 15.0 * (v_grid - params.theta) ** 2, color='#c44137', linewidth=2, label="beta=15 nonlinear")
+    
+    axs[0].set_title("A. Ground-Truth Drift Shapes", fontweight="bold")
+    axs[0].set_xlabel("Variance, v (annualized 1/year)")
+    axs[0].set_ylabel("$b_v(v)$, annualized variance/year")
+    axs[0].grid(True, linestyle="--", alpha=0.7)
+    axs[0].legend(loc="lower left")
+    
+    # Panel B
+    width = 0.6
+    axs[1].bar(np.arange(len(betas)), linear, width, label='linear confirmed', color='#767676')
+    axs[1].bar(np.arange(len(betas)), inconclusive, width, bottom=linear, label='inconclusive', color='#dde9fa')
+    axs[1].bar(np.arange(len(betas)), selected, width, bottom=linear+inconclusive, label='quadratic detected', color='#2357a5')
+    
+    axs[1].set_xticks(np.arange(len(betas)))
+    axs[1].set_xticklabels([f"{b:g}" for b in betas])
+    axs[1].set_ylim(0, 1.0)
+    axs[1].set_title("B. Final Decision Across 30 Seeds", fontweight="bold")
+    axs[1].set_xlabel("Quadratic strength beta")
+    axs[1].set_ylabel("Fraction of seeds (0-1)")
+    axs[1].legend(loc="lower center", bbox_to_anchor=(0.5, -0.2), ncol=3)
+    
+    # Panel C
+    axs[2].plot(betas, bic_pass, 'k-o', linewidth=2, label='BIC prefers quadratic')
+    axs[2].plot(betas, validation_pass, color='#c44137', marker='o', linestyle='-', linewidth=2, label='validation improves')
+    axs[2].plot(betas, bootstrap_pass, color='#2357a5', marker='o', linestyle='-', linewidth=2, label='bootstrap supports term')
+    
+    axs[2].axhline(0.70, color='gray', linestyle='--', linewidth=1)
+    axs[2].text(np.max(betas), 0.72, '0.70 support gate', color='gray', ha='right')
+    
+    axs[2].set_xticks([0, 5, 10, 15])
+    axs[2].set_ylim(-0.05, 1.05)
+    axs[2].set_title("C. Evidence Gate Pass Rates", fontweight="bold")
+    axs[2].set_xlabel("Quadratic strength beta")
+    axs[2].set_ylabel("Fraction of seeds (0-1)")
+    axs[2].grid(True, linestyle="--", alpha=0.7)
+    axs[2].legend(loc="lower center", bbox_to_anchor=(0.5, -0.2), ncol=1)
+    
+    fig.text(0.5, 0.01, "The selector is conservative: nonlinear claims require BIC, validation, and bootstrap support to agree.", ha="center", fontsize=10, color="gray")
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    plt.savefig(path, format="pdf", bbox_inches="tight")
+    plt.close(fig)
 
 
 def main() -> None:
